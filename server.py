@@ -6,11 +6,13 @@ PRIMARY_FONT = "Helvetica"
 
 HOST = ''
 PORT = 1234 # You can use any port between 0 to 65535
-LISTENER_LIMIT = 5
+LISTENER_LIMIT = 30
 active_clients = [] # List of all currently connected users
-server_status = True
 
+# initial_server = True
+server_status = False
 server_thread = None
+server_socket = None
 
 def runServer(right_frame):
     # Clear the right frame
@@ -23,110 +25,176 @@ def runServer(right_frame):
     label = ttk.Label(inner_frame, text="Server Mode", font=(PRIMARY_FONT, 20))
     label.grid(row=0, column=0, columnspan=2, pady=25)
 
-    start_btn = ttk.Button(inner_frame, text="Start", bootstyle="SUCCESS", width=10, command=lambda: main())
+    start_btn = ttk.Button(inner_frame, text="Start", bootstyle="SUCCESS", width=10, command=lambda: start_server(label))
     stop_btn = ttk.Button(inner_frame, text="Stop", bootstyle="WARNING", width=10, command=lambda: stop_server(label))
     start_btn.grid(row=1, column=0, padx=10, pady=30)
     stop_btn.grid(row=1, column=1, padx=10)
 
-    # Function to listen for upcoming messages from a client
-    def listen_for_messages(client, username):
-        while server_status:
+    message_box = ttk.dialogs.dialogs.Messagebox
 
-            message = client.recv(2048).decode('utf-8')
-            if message != '':
-                
-                final_msg = username + '~' + message
-                send_messages_to_all(final_msg)
 
-            else:
-                print(f"The message send from client {username} is empty")
+    def start_server(parent_frame):
+        # global initial_server
+        global server_status
+        global server_thread
+        global server_socket
+
+        try:
+            if server_thread is None or not server_thread.is_alive():
+                server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                # Getting Server IP Address
+                # server_ip = get_local_ip()
+                server_ip = "127.0.1.1"
+                HOST = server_ip
+                print(f"Server IP Address: {server_ip}")
+
+                try:
+                    server_socket.bind((HOST, PORT))
+                    print(f"Running the server on {HOST} {PORT}")
+
+                except:
+                    print(f"Unable to bind to host {HOST} and port {PORT}")
+                    
+                # Set server limit
+                server_socket.listen(LISTENER_LIMIT)
+
+                server_status = True
+
+                server_thread = threading.Thread(target=accept_connections)
+                server_thread.start()
+
+                # initial_server = False
+                print("Server has started successfully")
+
+        except:
+            # initial_server = True
+            message_box.show_error("Unable to connect to server !", "Connection Error", parent=parent_frame)
+
+
+    def stop_server(parent_frame): 
+        global active_clients
+        global server_status
+        global server_thread
+        global server_socket
+        
+        if len(active_clients) == 0 and server_socket and not server_thread.is_alive():
+            server_status = False
+
+            server_socket.close()
+            server_socket = None
+            # server_thread.join()
+
+            print("Server has stopped successfully")
+            message_box.show_info("Server has stopped successfully", "Server Success", parent=parent_frame)
+
+        else: 
+            message_box.show_warning("Unable to stop ! Users are online", "Server Warning", parent=parent_frame)
 
 
     # Function to send message to a single client
     def send_message_to_client(client, message):
 
-        client.sendall(message.encode())
+        client.sendall(message.encode()) 
 
 
     # Function to send any new message to all the clients that
     # are currently connected to this server
     def send_messages_to_all(message):
+        global active_clients
         
         for user in active_clients:
 
-            send_message_to_client(user[1], message)
+            send_message_to_client(user[0], message)
+
+
+    # Function to listen for upcoming messages from a client
+    def listen_for_messages(client, address, username):
+        global active_clients
+
+        while server_status:
+            try:
+                message = client.recv(2048).decode('utf-8')
+
+                if (not message):
+                    message = ''
+                    break
+
+                if message == 'LEAVE':
+                    # Remove the leaving client from the list of active clients
+                    try:    
+                        active_clients.remove((client, address, username))
+
+                        # Close the client socket
+                        client.close()
+
+                        # Notify other clients that this user is leaving
+                        leave_message = "SERVER~" + f"{username} on {address[0]} has left the chat"
+                        send_messages_to_all(leave_message)
+                        
+                    except:
+                        print("Error removing client from active list")
+
+                    break
+
+                if message != '':                    
+                    final_msg = username + '~' + message
+                    send_messages_to_all(final_msg)
+
+                else:
+                    print(f"The message send from client {username} is empty")
+                    break
+
+            except ConnectionResetError:
+                # Handle the case where the client disconnects abruptly
+                # Remove the client from the list of active clients
+                active_clients.remove((client, address, username))
+
+                # Close the client socket
+                client.close()
+                break
 
 
     # Function to handle client
-    def client_handler(client):
+    def client_handler(client, address):
+        global active_clients
         
         # Server will listen for client message that will
         # Contain the username
         while server_status:
-
             try: 
                 username = client.recv(2048).decode('utf-8')
+
                 if username != '':
-                    active_clients.append((username, client))
-                    prompt_message = "SERVER~" + f"{username} added to the chat"
+                    active_clients.append((client, address, username))
+                    prompt_message = "SERVER~" + f"{username} has joined the chat"
                     send_messages_to_all(prompt_message)
-                    listen_for_messages(client, username)
+                    # listen_for_messages(client, username)
                     break
+
                 else:
                     print("Client username is empty")
 
             except:
-                    active_clients.remove(client)
+                    active_clients.remove((client, address, username))
                     client.close()
                     break
 
-        threading.Thread(target=listen_for_messages, args=(client, username, )).start()
+        threading.Thread(target=listen_for_messages, args=(client, address, username, )).start()
 
 
-    # Main function
-    def main():
-        global server_thread
-
-        # Getting Local IP Address
-        # local_ip = get_local_ip()
-        local_ip = "172.20.2.53"
-        HOST = local_ip
-        print(f"Local IP Address: {local_ip}")
-        # Creating the socket class object
-        # AF_INET: we are going to use IPv4 addresses
-        # SOCK_STREAM: we are using TCP packets for communication
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Creating a try catch block
-        try:
-            # Provide the server with an address in the form of
-            # host IP and port
-            server.bind((HOST, PORT))
-            print(f"Running the server on {HOST} {PORT}")
-        except:
-            print(f"Unable to bind to host {HOST} and port {PORT}")
-
-        # Set server limit
-        server.listen(LISTENER_LIMIT)
+    def accept_connections():
 
         # This while loop will keep listening to client connections
         while server_status:
 
-            client, address = server.accept()
-            print(f"Successfully connected to client {address[0]} {address[1]}")
+            try:
+                client, address = server_socket.accept()
+                print(f"Successfully connected to client {address[0]} {address[1]}")
 
-            server_thread = threading.Thread(target=client_handler, args=(client, ))
-            server_thread.start()
-
-
-    def stop_server(parent_frame): 
-        global server_status
-        
-        if len(active_clients) != 0:
-            server_status = False
-
-        else: 
-            ttk.dialogs.dialogs.Messagebox.show_warning("Unable to stop ! Users are online", "Server Warning", parent=parent_frame)
+                threading.Thread(target=client_handler, args=(client, address, )).start()
+            
+            except:
+                pass
 
 
     def get_local_ip():
@@ -135,7 +203,5 @@ def runServer(right_frame):
         local_ip = socket.gethostbyname(hostname)
         return local_ip
 
-
-
-# if __name__ == '__main__':
-#     main()
+    # if not server_thread is None:
+    #     server_thread.join()

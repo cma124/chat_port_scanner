@@ -1,11 +1,12 @@
 import ttkbootstrap as ttk
 import menus
 import client
+import server
 
 PRIMARY_FONT = "Helvetica"
 
 # Create the main window
-root = ttk.Window(title="LAN Chat and Port Scanner", themename="solar", size=(900, 600), resizable=(False, False), iconphoto="icon.png")
+root = ttk.Window(title="LAN Chat and Port Scanner", themename="solar", size=(900, 680), resizable=(False, False), iconphoto="icon.png")
 root.place_window_center()
 
 # For all buttons
@@ -34,7 +35,7 @@ inner_frame.pack(pady=33)
 label = ttk.Label(inner_frame, text="LAN Chat", font=(PRIMARY_FONT, 32))
 
 client_btn = ttk.Button(inner_frame, text="Client Mode", bootstyle="INFO", width=25, command=lambda: client.chatClient(right_frame))
-server_btn = ttk.Button(inner_frame, text="Server Mode", bootstyle="INFO", width=25, command=lambda: menus.executeServer(inner_frame))
+server_btn = ttk.Button(inner_frame, text="Server Mode", bootstyle="INFO", width=25, command=lambda: server.runServer(right_frame))
 
 label.pack(pady=12)
 client_btn.pack(pady=25)
