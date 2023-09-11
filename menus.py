@@ -1,6 +1,7 @@
 import os
 import ttkbootstrap as ttk
 import client
+import server
 import single_port
 import multi_port
 import banner_port
@@ -23,7 +24,7 @@ def chooseClientServer(right_frame):
     label = ttk.Label(inner_frame, text="LAN Chat", font=(PRIMARY_FONT, 32))
 
     client_btn = ttk.Button(inner_frame, text="Client Mode", bootstyle="INFO", width=25, command=lambda: client.chatClient(right_frame))
-    server_btn = ttk.Button(inner_frame, text="Server Mode", bootstyle="INFO", width=25, command=lambda: executeServer(inner_frame))
+    server_btn = ttk.Button(inner_frame, text="Server Mode", bootstyle="INFO", width=25, command=lambda: server.runServer(right_frame))
 
     label.pack(pady=12)
     client_btn.pack(pady=25)

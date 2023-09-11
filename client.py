@@ -2,7 +2,7 @@ import socket
 import threading
 import ttkbootstrap as ttk
 
-HOST = '127.0.1.1'
+HOST = '172.20.1.111'
 PORT = 1234
 connected_status = False
 
@@ -36,6 +36,7 @@ def chatClient(right_frame):
     message_area.config(state=ttk.DISABLED)
 
     message_entry = ttk.Entry(inner_frame, font=(PRIMARY_FONT, 16), bootstyle="SUCCESS", width=58)
+    message_entry.bind("<KeyRelease>", lambda: sendMessage())
     message_entry.grid(row=3, column=0, columnspan=3)
     
     send_btn = ttk.Button(inner_frame, text="Send", bootstyle="SUCCESS", width=9, command=lambda: sendMessage())
@@ -52,9 +53,6 @@ def chatClient(right_frame):
 
         if username != '':
             try:
-                user_entry.config(state=ttk.DISABLED)
-                join_btn.config(state=ttk.DISABLED)
-
                 client_socket.connect((HOST, PORT))
                 client_socket.sendall(username.encode())
                 threading.Thread(target=listenFromServer, args=(client_socket, )).start()
@@ -66,6 +64,9 @@ def chatClient(right_frame):
                 message_area.config(state=ttk.NORMAL)
                 message_area.insert(ttk.END, "[SERVER] Successfully connected to the server" + '\n')
                 message_area.config(state=ttk.DISABLED)
+
+                user_entry.config(state=ttk.DISABLED)
+                join_btn.config(state=ttk.DISABLED)
 
             except:
                 message_box.show_error("Unable to connect to server !", "Connection Error", parent=user_entry)
