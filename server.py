@@ -9,9 +9,7 @@ PORT = 1234 # You can use any port between 0 to 65535
 LISTENER_LIMIT = 30
 active_clients = [] # List of all currently connected users
 
-# initial_server = True
 server_status = False
-server_thread = None
 server_socket = None
 
 def runServer(right_frame):
@@ -32,63 +30,49 @@ def runServer(right_frame):
 
     message_box = ttk.dialogs.dialogs.Messagebox
 
-
-    def start_server(parent_frame):
-        # global initial_server
-        global server_status
-        global server_thread
-        global server_socket
+    try:
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_ip = "127.0.1.1"
+        HOST = server_ip
 
         try:
-            if server_thread is None or not server_thread.is_alive():
-                server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                # Getting Server IP Address
-                # server_ip = get_local_ip()
-                server_ip = "127.0.1.1"
-                HOST = server_ip
-                print(f"Server IP Address: {server_ip}")
+            server_socket.bind((HOST, PORT))
+            print(f"Running the server on {HOST} {PORT}")
 
-                try:
-                    server_socket.bind((HOST, PORT))
-                    print(f"Running the server on {HOST} {PORT}")
-
-                except:
-                    print(f"Unable to bind to host {HOST} and port {PORT}")
-                    
-                # Set server limit
-                server_socket.listen(LISTENER_LIMIT)
-
-                server_status = True
-
-                server_thread = threading.Thread(target=accept_connections)
-                server_thread.start()
-
-                # initial_server = False
-                print("Server has started successfully")
+            # Set server limit
+            server_socket.listen(LISTENER_LIMIT)
 
         except:
-            # initial_server = True
-            message_box.show_error("Unable to connect to server !", "Connection Error", parent=parent_frame)
+            print(f"Unable to bind to host {HOST} and port {PORT}")
+            message_box.show_error(f"Unable to bind or listen !", "Connection Error", parent=label)
+
+    except:
+        message_box.show_error("Unable to connect to server !", "Connection Error", parent=label)
+
+
+    def start_server(parent_frame):
+        global server_status
+
+        server_status = True
+
+        threading.Thread(target=accept_connections).start()
+
+        message_box.show_info("Server has started successfully", "Server Success", parent=parent_frame)
+        print("Server has started successfully")
 
 
     def stop_server(parent_frame): 
         global active_clients
         global server_status
-        global server_thread
-        global server_socket
         
-        if len(active_clients) == 0 and server_socket and not server_thread.is_alive():
+        if len(active_clients) == 0:
             server_status = False
-
-            server_socket.close()
-            server_socket = None
-            # server_thread.join()
 
             print("Server has stopped successfully")
             message_box.show_info("Server has stopped successfully", "Server Success", parent=parent_frame)
 
         else: 
-            message_box.show_warning("Unable to stop ! Users are online", "Server Warning", parent=parent_frame)
+            message_box.show_warning("Unable to stop server !", "Server Warning", parent=parent_frame)
 
 
     # Function to send message to a single client
@@ -147,6 +131,7 @@ def runServer(right_frame):
             except ConnectionResetError:
                 # Handle the case where the client disconnects abruptly
                 # Remove the client from the list of active clients
+                print("Connection Reset Error")
                 active_clients.remove((client, address, username))
 
                 # Close the client socket
@@ -188,20 +173,23 @@ def runServer(right_frame):
         while server_status:
 
             try:
-                client, address = server_socket.accept()
-                print(f"Successfully connected to client {address[0]} {address[1]}")
+                if server_status:
+                    client, address = server_socket.accept()
+                    print("Server Status: " + server_status)
+                    print(f"Successfully connected to client {address[0]} {address[1]}")
 
-                threading.Thread(target=client_handler, args=(client, address, )).start()
+                    threading.Thread(target=client_handler, args=(client, address, )).start()
             
             except:
                 pass
 
 
-    def get_local_ip():
-        # Get the local IP address of the machine
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        return local_ip
+    # def get_local_ip():
+    #     # Get the local IP address of the machine
+    #     hostname = socket.gethostname()
+    #     local_ip = socket.gethostbyname(hostname)
+    #     return local_ip
+    
 
     # if not server_thread is None:
     #     server_thread.join()

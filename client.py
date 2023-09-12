@@ -3,11 +3,13 @@ import threading
 import datetime
 import ttkbootstrap as ttk
 
+PRIMARY_FONT = "Helvetica"
 HOST = '127.0.1.1'
 PORT = 1234
-connected_status = False
 
-PRIMARY_FONT = "Helvetica"
+connected_status = False
+global_client_socket = None
+
 
 def chatClient(right_frame):
     # Clear the right frame
@@ -41,14 +43,13 @@ def chatClient(right_frame):
     # message_entry.bind("<Return>", lambda: sendMessage)
     message_entry.grid(row=4, column=0, columnspan=3)
     
-    send_btn = ttk.Button(inner_frame, text="Send", bootstyle="SUCCESS", width=9, command=lambda: sendMessage())
-    leave_btn = ttk.Button(inner_frame, text="Leave", bootstyle="WARNING", width=9, command=lambda: leaveChat())
+    send_btn = ttk.Button(inner_frame, text="Send", bootstyle="SUCCESS", width=9, command=lambda: sendMessage(global_client_socket))
+    leave_btn = ttk.Button(inner_frame, text="Leave", bootstyle="WARNING", width=9, command=lambda: leaveChat(global_client_socket))
     send_btn.grid(row=5, column=1, padx=7, pady=20, sticky="e")
     leave_btn.grid(row=5, column=2)
 
     message_box = ttk.dialogs.dialogs.Messagebox
     
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def addMessage(message):
         message_area.config(state = ttk.NORMAL)
@@ -64,15 +65,19 @@ def chatClient(right_frame):
 
     def connectToServer():
         global HOST
+        global global_client_socket
 
         username = user_entry.get().strip()
         HOST = hostIP_entry.get().strip()
 
         if username != '' and HOST != '':
             try:
+                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                global_client_socket = client_socket
+
                 client_socket.connect((HOST, PORT))
                 client_socket.sendall(username.encode())
-                threading.Thread(target=listen_for_messages_from_server, args=(client_socket, )).start()
+                threading.Thread(target=listenFromServer, args=(client_socket, )).start()
                 
                 global connected_status
                 connected_status = True
@@ -94,7 +99,7 @@ def chatClient(right_frame):
             message_box.show_warning("Inputs cannot be empty !", "Invalid Input", parent=hostIP_entry)
 
 
-    def sendMessage():
+    def sendMessage(client_socket):
         if connected_status:
             message = message_entry.get()
 
@@ -110,7 +115,7 @@ def chatClient(right_frame):
             message_box.show_warning("Join to the server first !", "Warning", parent=hostIP_entry)
 
     
-    def listen_for_messages_from_server(client_socket):
+    def listenFromServer(client_socket):
         try:
             while 1:
                 time = datetime.datetime.now().time()
@@ -140,12 +145,16 @@ def chatClient(right_frame):
             client_socket.close()
 
 
-    def leaveChat():
+    def leaveChat(client_socket):
+        global connected_status
+
         if connected_status:
             client_socket.sendall("LEAVE".encode('utf-8'))
             
             # Close the client_socket
             client_socket.close()
+
+            connected_status = False
             
             # Update the GUI to indicate that the user is leaving
             addMessage("[SERVER] You have left the chat")
@@ -159,19 +168,20 @@ def chatClient(right_frame):
             join_btn.config(state = ttk.NORMAL)
             
             clearMessages()
+            print("User leave successfully")
         
         else:
-            message_box.show_warning("Cannot leave from chat !", "Warning", parent=hostIP_entry)
+            message_box.show_warning("Unable to leave from chat !", "Warning", parent=hostIP_entry)
 
 
-    def listenFromServer(client_socket):
-        while 1:
-            message = client_socket.recv(2048).decode('utf-8')
+    # def listenFromServer(client_socket):
+    #     while 1:
+    #         message = client_socket.recv(2048).decode('utf-8')
 
-            if message != '':
-                username = message.split("~")[0]
-                content = message.split('~')[1]
-                addMessage(f"[{username}] {content}")
+    #         if message != '':
+    #             username = message.split("~")[0]
+    #             content = message.split('~')[1]
+    #             addMessage(f"[{username}] {content}")
 
-            else:
-                message_box.show_warning("Message recevied from client is empty !", "Warning", parent=hostIP_entry)
+    #         else:
+    #             message_box.show_warning("Message recevied from client is empty !", "Warning", parent=hostIP_entry)
